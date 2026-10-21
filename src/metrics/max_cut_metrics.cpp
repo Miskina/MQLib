@@ -545,13 +545,14 @@ bool GraphMetrics::Disconnected() {
   std::vector<bool> added(n, false);  // Have we reached this node in DFS?
   std::vector<int> toVisit;
   toVisit.push_back(0);  // Start at node 0
+  added[0] = true;
   while (toVisit.size() > 0) {
     int node = toVisit.back();
     toVisit.pop_back();
-    added[node] = true;
     for (auto iter = mi_.get_edges_begin(node); iter != mi_.get_edges_end(node);
          ++iter) {
       if (!added[iter->first]) {
+        added[iter->first] = true;  // mark on push: each node is expanded once
         toVisit.push_back(iter->first);
       }
     }
