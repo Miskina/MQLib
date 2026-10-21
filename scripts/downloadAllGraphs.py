@@ -1,4 +1,4 @@
-import boto
+import boto  # Deprecatd can't download
 import os
 import sys
 
