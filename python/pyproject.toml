@@ -1,0 +1,14 @@
+[build-system]
+requires = ["scikit-build-core==0.11.6"]
+build-backend = "scikit_build_core.build"
+[project]
+name = "mqlib-metrics"
+version = "0.1.0"
+description = "MQLib GraphMetrics for an in-memory QUBO"
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.3", "scipy>=1.15"]
+[tool.scikit-build]
+wheel.packages = ["mqlib_metrics"]
+cmake.build-type = "Release"
+# The extension compiles sources from the parent MQLib tree (../src, ../include), so
+# build the wheel directly from this directory, never through an sdist.
