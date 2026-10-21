@@ -57,3 +57,15 @@ def qubo_metrics(Q, h, *, negate=True):
         raise ValueError("degenerate instance (0 terms or n<2)")
     values, times = _core.metrics(rows, cols, vals, diag, n)
     return dict(zip(metric_names(), values)), dict(zip(runtime_names(), times))
+
+
+def graph_metrics(n, i, j, w):
+    """MQLib metrics of a weighted Max-Cut graph on n nodes: edges (i[k], j[k], w[k]), 0-based, each unordered pair once, no
+    self-loops (as ``MQLib -fM <file> -m``, without a file). Returns ``(metrics, runtimes)`` as qubo_metrics."""
+    rows = np.ascontiguousarray(i, dtype=np.int64)
+    cols = np.ascontiguousarray(j, dtype=np.int64)
+    vals = np.ascontiguousarray(w, dtype=np.float64)
+    if not np.isfinite(vals).all():
+        raise ValueError("w must be finite")
+    values, times = _core.graph_metrics(rows, cols, vals, int(n))
+    return dict(zip(metric_names(), values)), dict(zip(runtime_names(), times))

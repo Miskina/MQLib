@@ -188,9 +188,87 @@ PyObject* metrics(PyObject*, PyObject* args) {
   return Py_BuildValue("(NN)", m, t);
 }
 
+// graph_metrics(rows, cols, vals, n): a weighted Max-Cut graph given as 0-based edges (each unordered pair
+// once, no self-loops) on n nodes. No QUBO conversion and so no master node.
+PyObject* graph_metrics(PyObject*, PyObject* args) {
+  PyObject *rows_obj, *cols_obj, *vals_obj;
+  long long n;
+  if (!PyArg_ParseTuple(args, "OOOL", &rows_obj, &cols_obj, &vals_obj, &n)) {
+    return nullptr;
+  }
+  Buffer rows, cols, vals;
+  if (!rows.acquire(rows_obj, "rows", true) ||
+      !cols.acquire(cols_obj, "cols", true) ||
+      !vals.acquire(vals_obj, "vals", false)) {
+    return nullptr;
+  }
+  if (n < 2 || n >= INT_MAX) {
+    PyErr_SetString(PyExc_ValueError, "n out of range");
+    return nullptr;
+  }
+  const Py_ssize_t nnz = rows.size();
+  if (cols.size() != nnz || vals.size() != nnz) {
+    PyErr_SetString(PyExc_ValueError, "rows, cols and vals differ in length");
+    return nullptr;
+  }
+  if (nnz < 1 || nnz >= INT_MAX) {
+    PyErr_SetString(PyExc_ValueError, "need 1 <= edges < INT_MAX");
+    return nullptr;
+  }
+  for (Py_ssize_t k = 0; k < nnz; ++k) {
+    const long long r = rows.ints()[k], c = cols.ints()[k];
+    if (r < 0 || r >= n || c < 0 || c >= n || r == c) {
+      PyErr_Format(PyExc_ValueError, "edge %zd: (%lld, %lld) is not a pair of distinct nodes", k, r, c);
+      return nullptr;
+    }
+  }
+
+  std::vector<double> out_metrics, out_runtimes;
+  std::string error;
+  bool memory_error = false;
+  Py_BEGIN_ALLOW_THREADS
+  try {
+    std::vector<Instance::InstanceTuple> edges;
+    edges.reserve(static_cast<size_t>(nnz));
+    for (Py_ssize_t k = 0; k < nnz; ++k) {
+      edges.push_back(Instance::InstanceTuple(
+          std::make_pair(static_cast<int>(rows.ints()[k]) + 1,
+                         static_cast<int>(cols.ints()[k]) + 1),
+          vals.reals()[k]));
+    }
+    MaxCutInstance mi(edges, static_cast<int>(n));
+    std::lock_guard<std::mutex> lock(metrics_mutex);
+    GraphMetrics gm(mi);
+    gm.AllMetrics(&out_metrics, &out_runtimes);
+  } catch (const std::bad_alloc&) {
+    memory_error = true;
+  } catch (const std::exception& e) {
+    error = e.what();
+  } catch (...) {
+    error = "unknown C++ exception";
+  }
+  Py_END_ALLOW_THREADS
+  if (memory_error) return PyErr_NoMemory();
+  if (!error.empty()) {
+    PyErr_SetString(PyExc_RuntimeError, error.c_str());
+    return nullptr;
+  }
+
+  PyObject* m = doubles_tuple(out_metrics);
+  if (!m) return nullptr;
+  PyObject* t = doubles_tuple(out_runtimes);
+  if (!t) {
+    Py_DECREF(m);
+    return nullptr;
+  }
+  return Py_BuildValue("(NN)", m, t);
+}
+
 PyMethodDef methods[] = {
     {"metrics", metrics, METH_VARARGS,
      "metrics(rows, cols, vals, diag, n) -> (metrics, runtimes)"},
+    {"graph_metrics", graph_metrics, METH_VARARGS,
+     "graph_metrics(rows, cols, vals, n) -> (metrics, runtimes)"},
     {"metric_names", metric_names, METH_NOARGS, "GraphMetrics::AllMetricNames"},
     {"runtime_names", runtime_names, METH_NOARGS,
      "GraphMetrics::AllRuntimeTypes"},
