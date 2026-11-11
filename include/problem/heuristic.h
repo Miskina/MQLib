@@ -13,6 +13,12 @@ class Heuristic {
   // Compute the runtime from start until now
   double Runtime();
 
+  // Iteration limit (-i): stop after this many Report() calls (any variant), whatever the runtime; -1 = off. Read at
+  // construction. Report() calls are the heuristic's own termination checks, so the count is a deterministic progress
+  // index for a given seed (the runtime does not enter it).
+  static long long default_iteration_limit;
+  long long get_report_count() const {  return report_count_;  }
+
   // Getters
   double get_best() const {  return best_;  }
 
@@ -38,10 +44,16 @@ class Heuristic {
   struct timeval start_time_;
   double best_;
   double runtime_limit_;
+  long long iteration_limit_;
+  long long report_count_;
+
+  // Keep going while below the runtime limit and (if set) the iteration limit
+  bool KeepGoing(double rt) const;
 
   // Information about the history of new best solutions found by the heuristic.
   std::vector<double> past_solution_values_;
   std::vector<double> past_solution_times_;
+  std::vector<long long> past_solution_counts_;  // Report() calls so far at each new best
 
  private:
   // Disable default constructor

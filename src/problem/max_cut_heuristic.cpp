@@ -16,45 +16,52 @@ MaxCutHeuristic::MaxCutHeuristic(const MaxCutInstance& mi,
   past_solutions_.push_back(MaxCutSimpleSolution(mi, this, -1));
   past_solution_values_.push_back(0.0);
   past_solution_times_.push_back(Runtime());
+  past_solution_counts_.push_back(0);
 }
 
 bool MaxCutHeuristic::Report() {
+  ++report_count_;
   double rt = Runtime();
   if (mc_) {
     return mc_->Report(past_solutions_[past_solutions_.size()-1], false, rt);
   } else {
-    return rt < runtime_limit_;
+    return KeepGoing(rt);
   }
 }
 
 bool MaxCutHeuristic::Report(int iter) {
+  ++report_count_;
   double rt = Runtime();
   if (mc_) {
     return mc_->Report(past_solutions_[past_solutions_.size()-1], false, rt,
                        iter);
   } else {
-    return rt < runtime_limit_;
+    return KeepGoing(rt);
   }
 }
 
 bool MaxCutHeuristic::Report(const BaseSolution& solution) {
+  ++report_count_;
   double rt = Runtime();
-  bool newBest = NewBest(solution, rt);
+  // past the iteration limit (a heuristic may report again on its way out) nothing more is recorded
+  bool newBest = (iteration_limit_ < 0 || report_count_ <= iteration_limit_) && NewBest(solution, rt);
   if (mc_) {
     return mc_->Report(past_solutions_[past_solutions_.size()-1], newBest, rt);
   } else {
-    return rt < runtime_limit_;
+    return KeepGoing(rt);
   }
 }
 
 bool MaxCutHeuristic::Report(const BaseSolution& solution, int iter) {
+  ++report_count_;
   double rt = Runtime();
-  bool newBest = NewBest(solution, rt);
+  // past the iteration limit (a heuristic may report again on its way out) nothing more is recorded
+  bool newBest = (iteration_limit_ < 0 || report_count_ <= iteration_limit_) && NewBest(solution, rt);
   if (mc_) {
     return mc_->Report(past_solutions_[past_solutions_.size()-1], newBest, rt,
                        iter);
   } else {
-    return rt < runtime_limit_;
+    return KeepGoing(rt);
   }
 }
 
@@ -62,6 +69,7 @@ bool MaxCutHeuristic::NewBest(const BaseSolution& solution, double runtime) {
   if (solution.ImprovesOver(best_)) {
     best_ = solution.get_weight();
     past_solution_times_.push_back(runtime);
+    past_solution_counts_.push_back(report_count_);
     past_solution_values_.push_back(best_);
     if (validation_) {
       past_solutions_.push_back(MaxCutSimpleSolution(mi_, this,

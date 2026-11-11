@@ -41,7 +41,7 @@ int main(int argc, const char* argv[]) {
   ez::ezOptionParser opt;
 
   opt.overview = "MQLib: Library of Max-Cut and QUBO heuristics";
-  opt.syntax = "\n# Run Max-Cut or QUBO heuristic\n./bin/MQlib -h heur_code | -hh -fM maxcut_file [-nv] [-ps] [-q | -r runtime_limit] [-s SEED]\n./bin/MQlib -h heur_code | -hh -fQ qubo_file [-nv] [-ps] [-q | -r runtime_limit] [-s SEED]\n\n# Compute metrics for an input file\n./bin/MQlib -fM maxcut_file [-mh] [-m]\n./bin/MQlib -fQ qubo_file [-mh] [-m]\n\n# List the available heuristics.\n./bin/MQlib -l";
+  opt.syntax = "\n# Run Max-Cut or QUBO heuristic\n./bin/MQlib -h heur_code | -hh -fM maxcut_file [-nv] [-ps] [-q | -r runtime_limit] [-i iteration_limit] [-s SEED]\n./bin/MQlib -h heur_code | -hh -fQ qubo_file [-nv] [-ps] [-q | -r runtime_limit] [-i iteration_limit] [-s SEED]\n\n# Compute metrics for an input file\n./bin/MQlib -fM maxcut_file [-mh] [-m]\n./bin/MQlib -fQ qubo_file [-mh] [-m]\n\n# List the available heuristics.\n./bin/MQlib -l";
   opt.example = "./bin/MQlib -h BURER2002 -fM bin/sampleMaxCut.txt -r 10\n";
 
   opt.add("",  // Default
@@ -158,6 +158,16 @@ int main(int argc, const char* argv[]) {
 	  vD
 	  );
 
+  opt.add("",  // Default
+          0,  // Required?
+          1,  // Number of args expected
+          0,  // Delimiter if expecting multiple args
+          "Iteration limit: stop after this many Report() calls (termination checks); the runtime limit still applies",
+          "-i",
+          "--iterations",
+          vD
+          );
+
   opt.parse(argc, argv);
 
   std::vector<std::string> badOptions;
@@ -190,7 +200,7 @@ int main(int argc, const char* argv[]) {
 
   // Check if any of the options for a heuristic run are set
   bool heurSet = opt.isSet("-h") || opt.isSet("-hh") || opt.isSet("-nv") ||
-    opt.isSet("-ps") || opt.isSet("-q") || opt.isSet("-r") || opt.isSet("-s");
+    opt.isSet("-ps") || opt.isSet("-q") || opt.isSet("-r") || opt.isSet("-s") || opt.isSet("-i");
   bool metricSet = opt.isSet("-m") || opt.isSet("-mh");
   bool listSet = opt.isSet("-l");
   int numSet = ((int)heurSet) + ((int)metricSet) + ((int)listSet);
@@ -275,6 +285,16 @@ int main(int argc, const char* argv[]) {
       }
     }
     
+    if (opt.isSet("-i")) {
+      double iterations;
+      opt.get("-i")->getDouble(iterations);
+      if (iterations < 0.0) {
+        std::cout << "Illegal iteration limit: " << iterations << std::endl;
+        return 1;
+      }
+      Heuristic::default_iteration_limit = (long long)iterations;
+    }
+
     // Run the heuristic
     bool validation = !opt.isSet("-nv");
     MaxCutHeuristic *mh = NULL;
@@ -328,7 +348,8 @@ int main(int argc, const char* argv[]) {
       // Common output whenever we're running heuristics
       std::cout << runtime_limit << "," << heuristic_code << ",\"" << filename <<
         "\"," << std::setprecision(15) << heuristic->get_best() << "," <<
-        final_runtime << "," << heuristic->History() << std::endl;
+        final_runtime << "," << heuristic->History() << "," <<
+        heuristic->get_report_count() << std::endl;
     }
     
     // Print out the final solution if requested
